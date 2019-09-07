@@ -52,7 +52,8 @@ def main():
   model_parallel = dp.DataParallel(model, device_ids=devices)
 
   def train_loop_fn(model, loader, device, context):
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer = context.getattr_or(
+        'optimizer', lambda: torch.optim.SGD(model.parameters(), lr=0.001))
     tracker = xm.RateTracker()
 
     positions = torch.arange(SEQUENCE_LENGTH).long().view(
@@ -62,6 +63,7 @@ def main():
             SEQUENCE_LENGTH, SEQUENCE_LENGTH, dtype=torch.uint8, device=device),
         diagonal=1).unsqueeze(0)
 
+    model.train()
     for iteration, batch in loader:
       input = batch[:, :-1].long()
       target = batch[:, 1:].long()
