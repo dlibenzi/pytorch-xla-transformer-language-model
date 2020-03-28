@@ -10,7 +10,8 @@ import torch
 import torch.utils.data
 
 import torch_xla
-import torch_xla.distributed.data_parallel as dp
+import torch_xla.debug.metrics as met
+import torch_xla.distributed.parallel_loader as pl
 import torch_xla.utils.utils as xu
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.xla_multiprocessing as xmp
@@ -71,7 +72,7 @@ def main(index):
         diagonal=1).unsqueeze(0)
 
     model.train()
-    for iteration, batch in loader:
+    for iteration, batch in enumerate(loader):
       input = batch[:, :-1].long()
       target = batch[:, 1:].long()
 
@@ -85,15 +86,15 @@ def main(index):
             device, iteration,
             loss.item() / math.log(2), tracker.rate()))
       if iteration % METRICS_STEP == 0:
-        print(torch_xla._XLAC._xla_metrics_report())
+        xm.master_print(met.metrics_report())
 
   train_loader = get_dataloader('datasets/enwik8/train/train.txt.raw',
                                 BATCH_SIZE, SEQUENCE_LENGTH, 0)
 
   for epoch in range(0, NUM_EPOCHS):
-    para_loader = dp.ParallelLoader(train_loader, [device])
+    para_loader = pl.ParallelLoader(train_loader, [device])
     train_loop_fn(para_loader.per_device_loader(device))
 
 
 if __name__ == '__main__':
-    xmp.spawn(main, args=())
+  xmp.spawn(main, args=())
